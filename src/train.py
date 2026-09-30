@@ -20,7 +20,7 @@ from utils.loss import MPJPELoss
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def train():
-    num_epochs = 20
+    num_epochs = 20 # 에포크 수
     batch_size = 16
     learning_rate = 1e-4  # 파인튜닝 시에는 다소 보수적인 학습률 권장
     val_ratio = 0.2

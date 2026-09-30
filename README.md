@@ -101,3 +101,20 @@ $$\mathcal{L}_{3D} = \frac{1}{K} \sum_{k=1}^{K} \Vert{} \hat{J}_k - J_k \Vert{}_
 * **3D Volumetric AI 모델 직접 설계:** 단순 2D 포즈 추정을 넘어, 단일 RGB 이미지에서 3차원 깊이($Z$축)까지 예측하는 **3D Volumetric Heatmap 디코더 및 Soft-Argmax 3D 구조를 PyTorch로 직접 설계 및 구현**
 * **도메인 특화 3D 파이프라인:** 복싱 동작의 입체적 가드 자세 및 펀치 깊이감을 정밀하게 추적하는 **상체 중심 커스텀 3D 데이터 파이프라인** 구축
 * **엔드투엔드(End-to-End) 게임 엔진 연동:** PyTorch AI 모델 추론부터 UDP 실시간 통신, 언리얼 엔진 5 Control Rig 3D 캐릭터 스켈레톤 제어까지 연결되는 **완전한 3D 모션 캡처 파이프라인** 완성
+
+
+---
+
+## 7. 사용법
+
+1. **학습 동영상 준비**
+   * `src/data/videos/` 폴더를 생성하고 학습시킬 동영상 파일들을 저장합니다.
+2. **자동 라벨링 및 데이터셋 구성**
+   * `python src/label.py`를 실행합니다.
+   * 신규 동영상만 자동으로 판별·프레임을 추출하여 3D 라벨 데이터셋을 누적 구축합니다.
+3. **3D Pose 모델 학습 및 파인튜닝**
+   * `python src/train.py`를 실행합니다.
+   * 기존 `best_model.pth` 가중치가 존재할 경우 이를 승계하여 이어서 학습을 진행합니다.
+4. **ONNX 변환 및 실시간 추론**
+   * `python src/export.py`를 실행하여 학습된 모델을 ONNX 규격으로 변환합니다.
+   * `python src/inference.py`를 실행하여 DirectML 가속 기반 3분할 실시간 추론을 수행합니다.

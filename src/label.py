@@ -36,7 +36,6 @@ class PoseLabelGenerator:
         json_out_path = os.path.join(self.output_dir, "annotations_3d.json")
         processed_log_path = os.path.join(self.output_dir, "processed_videos.json")
 
-        # 1. 기존 데이터셋 및 처리 이력 로드
         annotations = []
         if os.path.exists(json_out_path):
             with open(json_out_path, 'r', encoding='utf-8') as f:
@@ -47,7 +46,6 @@ class PoseLabelGenerator:
             with open(processed_log_path, 'r', encoding='utf-8') as f:
                 processed_videos = set(json.load(f))
 
-        # 2. 영상 폴더 스캔
         video_files = [f for f in os.listdir(self.video_dir) if f.lower().endswith(('.mp4', '.avi', '.mov', '.mkv'))]
         new_videos = [f for f in video_files if f not in processed_videos]
 
@@ -56,12 +54,15 @@ class PoseLabelGenerator:
             return
 
         print(f"🎬 신규 처리 대상 영상: {len(new_videos)}개 {new_videos}")
-        start_img_idx = len(annotations)
 
         for video_name in new_videos:
+            # 비디오 파일명에서 확장자 제거 (예: boxing_sample1.mp4 -> boxing_sample1)
+            video_stem = os.path.splitext(video_name)[0]
             video_full_path = os.path.join(self.video_dir, video_name)
+            
             cap = cv2.VideoCapture(video_full_path)
             frame_idx = 0
+            saved_in_video = 0
 
             while cap.isOpened():
                 ret, frame = cap.read()
@@ -102,26 +103,26 @@ class PoseLabelGenerator:
                             for kp in keypoints_raw
                         ]
 
-                        img_filename = f"frame_{start_img_idx:06d}.jpg"
+                        # 💡 [비디오명]_[프레임번호].jpg 네이밍 규격 적용
+                        img_filename = f"{video_stem}_frame_{saved_in_video:05d}.jpg"
                         cv2.imwrite(os.path.join(self.img_out_dir, img_filename), frame)
 
                         annotations.append({"image_path": img_filename, "keypoints_3d": keypoints_norm})
-                        start_img_idx += 1
+                        saved_in_video += 1
 
                 frame_idx += 1
 
             cap.release()
             processed_videos.add(video_name)
+            print(f"  └─ {video_name}: {saved_in_video}개 프레임 추출 완료")
 
-        # 3. 누적 라벨 및 이력 저장
         with open(json_out_path, 'w', encoding='utf-8') as f:
             json.dump(annotations, f, indent=2)
 
         with open(processed_log_path, 'w', encoding='utf-8') as f:
             json.dump(list(processed_videos), f, indent=2)
 
-        print(f"🎉 라벨링 업데이트 완료! 총 샘플 수: {len(annotations)}개")
+        print(f"\n🎉 전체 라벨링 업데이트 완료! 누적 샘플 수: {len(annotations)}개")
 
 if __name__ == "__main__":
-    # src/data/videos 폴더 내의 신규 영상들을 자동으로 처리합니다.
     PoseLabelGenerator().process_all_new_videos(sample_rate=5)
