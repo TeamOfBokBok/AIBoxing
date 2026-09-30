@@ -1,0 +1,127 @@
+import os
+import json
+import cv2
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+os.environ["GLOG_minloglevel"] = "2"
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+class PoseLabelGenerator:
+    def __init__(self, data_dir: str = "src/data", video_dir: str = "src/data/videos", model_path: str = "pose_landmarker_heavy.task"):
+        self.output_dir = os.path.join(PROJECT_ROOT, data_dir) if not os.path.isabs(data_dir) else data_dir
+        self.video_dir = os.path.join(PROJECT_ROOT, video_dir) if not os.path.isabs(video_dir) else video_dir
+        self.img_out_dir = os.path.join(self.output_dir, "images")
+        
+        os.makedirs(self.img_out_dir, exist_ok=True)
+        os.makedirs(self.video_dir, exist_ok=True)
+
+        model_full_path = os.path.join(PROJECT_ROOT, model_path) if not os.path.isabs(model_path) else model_path
+        if not os.path.exists(model_full_path):
+            raise FileNotFoundError(f"❌ MediaPipe 모델 파일('{model_full_path}')을 찾을 수 없습니다.")
+
+        base_options = python.BaseOptions(model_asset_path=model_full_path)
+        options = vision.PoseLandmarkerOptions(base_options=base_options, output_segmentation_masks=False)
+        self.detector = vision.PoseLandmarker.create_from_options(options)
+
+        self.mp_map = {
+            "nose": 0, "r_shoulder": 12, "r_elbow": 14, "r_wrist": 16,
+            "l_shoulder": 11, "l_elbow": 13, "l_wrist": 15
+        }
+
+    def process_all_new_videos(self, sample_rate: int = 5):
+        json_out_path = os.path.join(self.output_dir, "annotations_3d.json")
+        processed_log_path = os.path.join(self.output_dir, "processed_videos.json")
+
+        # 1. 기존 데이터셋 및 처리 이력 로드
+        annotations = []
+        if os.path.exists(json_out_path):
+            with open(json_out_path, 'r', encoding='utf-8') as f:
+                annotations = json.load(f)
+
+        processed_videos = set()
+        if os.path.exists(processed_log_path):
+            with open(processed_log_path, 'r', encoding='utf-8') as f:
+                processed_videos = set(json.load(f))
+
+        # 2. 영상 폴더 스캔
+        video_files = [f for f in os.listdir(self.video_dir) if f.lower().endswith(('.mp4', '.avi', '.mov', '.mkv'))]
+        new_videos = [f for f in video_files if f not in processed_videos]
+
+        if not new_videos:
+            print("✨ 새롭게 추가된 영상이 없습니다. 기존 라벨을 유지합니다.")
+            return
+
+        print(f"🎬 신규 처리 대상 영상: {len(new_videos)}개 {new_videos}")
+        start_img_idx = len(annotations)
+
+        for video_name in new_videos:
+            video_full_path = os.path.join(self.video_dir, video_name)
+            cap = cv2.VideoCapture(video_full_path)
+            frame_idx = 0
+
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+
+                if frame_idx % sample_rate == 0:
+                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+                    detection_result = self.detector.detect(mp_image)
+
+                    if detection_result.pose_world_landmarks and len(detection_result.pose_world_landmarks) > 0:
+                        landmarks = detection_result.pose_world_landmarks[0]
+                        r_sh = landmarks[self.mp_map["r_shoulder"]]
+                        l_sh = landmarks[self.mp_map["l_shoulder"]]
+
+                        neck_x = (r_sh.x + l_sh.x) / 2.0
+                        neck_y = (r_sh.y + l_sh.y) / 2.0
+                        neck_z = (r_sh.z + l_sh.z) / 2.0
+
+                        keypoints_raw = [
+                            [landmarks[self.mp_map["nose"]].x, landmarks[self.mp_map["nose"]].y, landmarks[self.mp_map["nose"]].z],
+                            [neck_x, neck_y, neck_z],
+                            [r_sh.x, r_sh.y, r_sh.z],
+                            [landmarks[self.mp_map["r_elbow"]].x, landmarks[self.mp_map["r_elbow"]].y, landmarks[self.mp_map["r_elbow"]].z],
+                            [landmarks[self.mp_map["r_wrist"]].x, landmarks[self.mp_map["r_wrist"]].y, landmarks[self.mp_map["r_wrist"]].z],
+                            [l_sh.x, l_sh.y, l_sh.z],
+                            [landmarks[self.mp_map["l_elbow"]].x, landmarks[self.mp_map["l_elbow"]].y, landmarks[self.mp_map["l_elbow"]].z],
+                            [landmarks[self.mp_map["l_wrist"]].x, landmarks[self.mp_map["l_wrist"]].y, landmarks[self.mp_map["l_wrist"]].z]
+                        ]
+
+                        keypoints_norm = [
+                            [
+                                max(-1.0, min(1.0, round(kp[0] - neck_x, 4))),
+                                max(-1.0, min(1.0, round(kp[1] - neck_y, 4))),
+                                max(-1.0, min(1.0, round(kp[2] - neck_z, 4)))
+                            ]
+                            for kp in keypoints_raw
+                        ]
+
+                        img_filename = f"frame_{start_img_idx:06d}.jpg"
+                        cv2.imwrite(os.path.join(self.img_out_dir, img_filename), frame)
+
+                        annotations.append({"image_path": img_filename, "keypoints_3d": keypoints_norm})
+                        start_img_idx += 1
+
+                frame_idx += 1
+
+            cap.release()
+            processed_videos.add(video_name)
+
+        # 3. 누적 라벨 및 이력 저장
+        with open(json_out_path, 'w', encoding='utf-8') as f:
+            json.dump(annotations, f, indent=2)
+
+        with open(processed_log_path, 'w', encoding='utf-8') as f:
+            json.dump(list(processed_videos), f, indent=2)
+
+        print(f"🎉 라벨링 업데이트 완료! 총 샘플 수: {len(annotations)}개")
+
+if __name__ == "__main__":
+    # src/data/videos 폴더 내의 신규 영상들을 자동으로 처리합니다.
+    PoseLabelGenerator().process_all_new_videos(sample_rate=5)
