@@ -33,7 +33,8 @@ class PoseLabelGenerator:
         }
 
     def process_all_new_videos(self, sample_rate: int = 5):
-        json_out_path = os.path.join(self.output_dir, "annotations_3d.json")
+        json_out_path = os.path.join(self.output_dir, "annotations.json")
+        legacy_json_path = os.path.join(self.output_dir, "annotations_3d.json")
         processed_log_path = os.path.join(self.output_dir, "processed_videos.json")
 
         annotations = []
@@ -56,7 +57,6 @@ class PoseLabelGenerator:
         print(f"🎬 신규 처리 대상 영상: {len(new_videos)}개 {new_videos}")
 
         for video_name in new_videos:
-            # 비디오 파일명에서 확장자 제거 (예: boxing_sample1.mp4 -> boxing_sample1)
             video_stem = os.path.splitext(video_name)[0]
             video_full_path = os.path.join(self.video_dir, video_name)
             
@@ -103,7 +103,6 @@ class PoseLabelGenerator:
                             for kp in keypoints_raw
                         ]
 
-                        # 💡 [비디오명]_[프레임번호].jpg 네이밍 규격 적용
                         img_filename = f"{video_stem}_frame_{saved_in_video:05d}.jpg"
                         cv2.imwrite(os.path.join(self.img_out_dir, img_filename), frame)
 
@@ -122,7 +121,7 @@ class PoseLabelGenerator:
         with open(processed_log_path, 'w', encoding='utf-8') as f:
             json.dump(list(processed_videos), f, indent=2)
 
-        print(f"\n🎉 전체 라벨링 업데이트 완료! 누적 샘플 수: {len(annotations)}개")
+        print(f"\n🎉 전체 라벨링 업데이트 완료! 누적 샘플 수: {len(annotations)}개 ({json_out_path})")
 
 if __name__ == "__main__":
     PoseLabelGenerator().process_all_new_videos(sample_rate=5)

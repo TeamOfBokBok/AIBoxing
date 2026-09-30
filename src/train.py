@@ -20,12 +20,14 @@ from utils.loss import MPJPELoss
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def train():
-    num_epochs = 20 # 에포크 수
+    num_epochs = 20
     batch_size = 16
-    learning_rate = 1e-4  # 파인튜닝 시에는 다소 보수적인 학습률 권장
+    learning_rate = 1e-4
     val_ratio = 0.2
 
-    json_path = os.path.join(PROJECT_ROOT, "src", "data", "annotations_3d.json")
+    # 💡 annotations.json 경로 변경 (하위 호환성 체크 적용)
+    json_path = os.path.join(PROJECT_ROOT, "src", "data", "annotations.json")
+
     img_dir = os.path.join(PROJECT_ROOT, "src", "data", "images")
 
     full_dataset = BoxingDataset(json_path=json_path, img_dir=img_dir, is_train=True)
@@ -41,7 +43,6 @@ def train():
 
     model = BoxingPose3DNet(num_keypoints=8, depth_res=64, pretrained=True).to(device)
 
-    # 💡 이전 학습 가중치가 존재하면 로드 (이어서 학습)
     weights_dir = os.path.join(PROJECT_ROOT, "src", "weights")
     weight_path = os.path.join(weights_dir, "best_model.pth")
     if os.path.exists(weight_path):
