@@ -1,5 +1,92 @@
 # 🥊 AIBoxing 3D 기술 로드맵
 
+## 현재 구현 기준 빠른 시작
+
+이 프로젝트는 단일 RGB 영상에서 상체 8개 관절의 상대 3D 좌표를 추정합니다.
+Windows의 AMD GPU에서는 ONNX Runtime DirectML을 우선 사용하고, ONNX 파일이 없을 때는 PyTorch 추론으로 자동 전환합니다.
+
+### 1. 가상환경 및 의존성 설치
+
+PowerShell 기준입니다.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+수동 설치가 필요하면 다음 패키지를 설치합니다.
+
+```powershell
+pip install onnx onnxscript onnxruntime-directml opencv-python pillow mediapipe
+```
+
+### 2. 데이터 라벨 생성
+
+학습할 영상을 `src/data/videos/`에 넣습니다. 폴더가 없으면 라벨 스크립트가 생성합니다.
+MediaPipe 모델 파일 `pose_landmarker_heavy.task`는 프로젝트 루트에 있어야 합니다.
+
+```powershell
+python src/label.py
+```
+
+처리된 영상은 `src/data/processed_videos.json`에 기록되며, 프레임 이미지는 `src/data/images/`, 라벨은 `src/data/annotations_3d.json`에 누적됩니다.
+
+### 3. 모델 학습
+
+```powershell
+python src/train.py
+```
+
+학습은 `src/data/annotations_3d.json`과 `src/data/images/`를 사용하며, 최적 가중치를 `src/weights/best_model.pth`에 저장합니다.
+
+### 4. ONNX 변환
+
+```powershell
+python src/export.py
+```
+
+`src/weights/best_model.onnx`가 생성됩니다. 입력은 `[1, 3, 256, 256]`, 주요 출력 `coords_3d`는 `[1, 8, 3]`이며 ONNX opset 11을 사용합니다.
+
+### 5. 실시간 3분할 추론
+
+프로젝트 루트의 `boxing_sample.mp4`를 입력 영상으로 사용합니다. 파일이 없으면 웹캠으로 자동 전환됩니다.
+
+```powershell
+python src/inference.py
+```
+
+기본 실행은 ONNX Runtime의 `DmlExecutionProvider`를 우선 사용하고, 화면에 원본·정면(X-Y)·측면(Z-Y) 패널을 표시합니다. 종료하려면 `q`를 누릅니다. `save_video=True`로 실행되므로 결과는 `src/output/result.mp4`에 저장되며, 같은 이름이 있으면 `_1`, `_2`가 붙습니다.
+
+### 현재 파일 구조
+
+```text
+AIBoxing/
+├── boxing_sample.mp4
+├── pose_landmarker_heavy.task
+├── requirements.txt
+├── README.md
+└── src/
+   ├── data/
+   │   ├── annotations_3d.json
+   │   ├── images/
+   │   └── videos/                 # 라벨링할 원본 영상
+   ├── models/
+   │   └── pose_net.py              # ResNet-18 기반 3D 포즈 모델
+   ├── utils/
+   │   ├── dataset.py
+   │   └── loss.py
+   ├── weights/
+   │   ├── best_model.pth
+   │   ├── best_model.onnx
+   │   └── best_model.onnx.data
+   ├── output/                      # 추론 결과 영상
+   ├── label.py                     # MediaPipe 기반 프레임 라벨 생성
+   ├── train.py                     # 학습 및 검증
+   ├── export.py                    # PyTorch 가중치 -> ONNX 변환
+   └── inference.py                 # DirectML 우선 실시간 추론
+```
+
 ---
 
 ## 1. 프로젝트 개요
@@ -33,7 +120,7 @@
 ---
 
 ### 2.1. Encoder (백본 네트워크)
-* **네트워크:** `ResNet-18` 또는 `ResNet-34` 활용 (ImageNet Pre-trained)
+* **네트워크:** `ResNet-18` 활용 (ImageNet Pre-trained)
 * **역할:** 입력 이미지의 고차원 특징(Feature Map)을 추출하는 기저 네트워크
 
 ### 2.2. Decoder (커스텀 3D 딥러닝 헤드)
@@ -91,16 +178,9 @@ $$\mathcal{L}_{3D} = \frac{1}{K} \sum_{k=1}^{K} \Vert{} \hat{J}_k - J_k \Vert{}_
 
 ---
 
-## 7. 사용법
+## 7. 현재 상태 및 주의사항
 
-1. **학습 동영상 준비**
-   * `src/data/videos/` 폴더를 생성하고 학습시킬 동영상 파일들을 저장합니다.
-2. **자동 라벨링 및 데이터셋 구성**
-   * `python src/label.py`를 실행합니다.
-   * 신규 동영상만 자동으로 판별·프레임을 추출하여 3D 라벨 데이터셋을 누적 구축합니다.
-3. **3D Pose 모델 학습 및 파인튜닝**
-   * `python src/train.py`를 실행합니다.
-   * 기존 `best_model.pth` 가중치가 존재할 경우 이를 승계하여 이어서 학습을 진행합니다.
-4. **ONNX 변환 및 실시간 추론**
-   * `python src/export.py`를 실행하여 학습된 모델을 ONNX 규격으로 변환합니다.
-   * `python src/inference.py`를 실행하여 DirectML 가속 기반 3분할 실시간 추론을 수행합니다.
+* 학습 스크립트는 기존 `best_model.pth`가 있으면 해당 가중치를 불러와 이어서 학습합니다.
+* `inference.py`는 입력 프레임을 256x256으로 전처리하고, 3분할 화면의 전체 기준 폭을 1920픽셀로 구성합니다.
+* `DmlExecutionProvider`가 설치되어 있지 않거나 ONNX 모델이 없으면 `inference.py`가 PyTorch 경로로 fallback합니다.
+* Unreal Engine UDP 전송 모듈은 현재 파일 구조에 포함되어 있지 않습니다.
