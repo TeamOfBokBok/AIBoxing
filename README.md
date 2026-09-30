@@ -1,5 +1,19 @@
 # 🥊 AIBoxing 3D 기술 로드맵
 
+## Windows AMD GPU 실시간 추론
+
+AMD RX 5600 XT에서는 PyTorch CUDA 대신 ONNX Runtime DirectML 경로를 사용합니다.
+
+```powershell
+pip install onnx onnxruntime-directml opencv-python pillow
+python src/export_onnx.py
+python src/inference_onnx_directml.py
+```
+
+`src/inference_onnx_directml.py`는 `DmlExecutionProvider`를 우선 사용하며,
+`boxing_sample.mp4`가 없으면 웹캠으로 전환합니다. 결과 영상은
+`src/output/side_by_side_directml.mp4`에 원본 해상도로 저장되고, 화면에는 25% 크기로 표시됩니다.
+
 ---
 
 ## 1. 프로젝트 개요

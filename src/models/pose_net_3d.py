@@ -81,9 +81,9 @@ class SoftArgmax3D(nn.Module):
 
 # 4. 메인 3D 포즈 추정 모델
 class BoxingPose3DNet(nn.Module):
-    def __init__(self, num_keypoints=8, depth_res=64):
+    def __init__(self, num_keypoints=8, depth_res=64, pretrained=True):
         super(BoxingPose3DNet, self).__init__()
-        self.backbone = ResNetBackbone(pretrained=True)
+        self.backbone = ResNetBackbone(pretrained=pretrained)
         self.decoder = Decoder3D(num_keypoints=num_keypoints, depth_res=depth_res)
         self.soft_argmax = SoftArgmax3D(depth=depth_res, height=64, width=64)
 
