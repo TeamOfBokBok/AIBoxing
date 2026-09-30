@@ -184,3 +184,36 @@ $$\mathcal{L}_{3D} = \frac{1}{K} \sum_{k=1}^{K} \Vert{} \hat{J}_k - J_k \Vert{}_
 * `inference.py`는 입력 프레임을 256x256으로 전처리하고, 3분할 화면의 전체 기준 폭을 1920픽셀로 구성합니다.
 * `DmlExecutionProvider`가 설치되어 있지 않거나 ONNX 모델이 없으면 `inference.py`가 PyTorch 경로로 fallback합니다.
 * Unreal Engine UDP 전송 모듈은 현재 파일 구조에 포함되어 있지 않습니다.
+
+---
+
+## 8. 다중 PC 환경 분산 학습 (가중치 릴레이 방식)
+
+대용량 이미지 데이터(수 GB~)를 PC 간에 직접 전송하지 않고, **경량화된 가중치 파일(`best_model.pth`, 약 30~40MB)**만 공유하여 파인튜닝을 이어가는 방식입니다. 느린 네트워크 환경에서도 병목 없이 여러 디바이스에서 효율적으로 분산 학습을 진행할 수 있습니다.
+
+---
+
+### 🔄 분산 학습 워크플로우
+
+```text
+[PC A (1차 학습)]
+  1. 로컬 영상 데이터로 학습 진행 (`python src/train.py`)
+  2. 생성된 최적 가중치(`src/weights/best_model.pth`)를 공유 저장소(Google Drive/GitHub 등)에 업로드
+
+      │
+      ▼ (가중치 파일만 온라인으로 공유)
+      │
+
+[PC B (이어서 파인튜닝)]
+  1. 공유 저장소에서 최신 `best_model.pth` 다운로드 후 `src/weights/` 경로에 배치
+  2. PC B 로컬 데이터로 추가 파인튜닝 진행 (`python src/train.py` 실행 시 자동 계승)
+  3. 더 개선된 `best_model.pth`를 다시 공유 저장소에 업데이트
+```
+
+### 학습 후 원본 이미지 파일의 처리방법
+
+```text
+images/
+annotations.json
+```
+압축 후 클라우드에 보관
