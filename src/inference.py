@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ONNX_PATH = os.path.join(PROJECT_ROOT, "src", "weights", "best_model.onnx")
 PTH_PATH = os.path.join(PROJECT_ROOT, "src", "weights", "best_model.pth")
-OUTPUT_PATH = os.path.join(PROJECT_ROOT, "src", "output", "3panel_result.mp4")
+OUTPUT_PATH = os.path.join(PROJECT_ROOT, "src", "output", "result.mp4")
 
 cv2.setNumThreads(4)
 
