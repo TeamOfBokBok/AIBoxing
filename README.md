@@ -230,5 +230,6 @@ merge/ 폴더에 merged_model.pth 파일 생성
 ```text
 images/
 annotations.json
+processed_videos.json
 ```
 압축 후 클라우드에 보관
