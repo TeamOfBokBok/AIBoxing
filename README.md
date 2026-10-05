@@ -46,15 +46,7 @@ python src/train.py
 
 학습은 `src/data/annotations.json`과 `src/data/images/`를 사용하며, 최적 가중치를 `src/weights/best_model.pth`에 저장합니다. 학습이 정상적으로 끝나면 `src/weights/best_model.onnx`로 자동 변환됩니다.
 
-### 4. ONNX 변환 확인
-
-학습이 끝나면 `src/weights/best_model.onnx`가 자동으로 생성됩니다. 입력은 `[1, 3, 256, 256]`, 주요 출력 `coords_3d`는 `[1, 8, 3]`이며 ONNX opset 11을 사용합니다. 이미 학습된 가중치만 다시 변환해야 하는 경우에는 다음 명령을 사용합니다.
-
-```powershell
-python src/export.py
-```
-
-### 5. 실시간 3분할 추론
+### 4. 실시간 3분할 추론
 
 프로젝트 루트의 `boxing_sample.mp4`를 입력 영상으로 사용합니다. 파일이 없으면 웹캠으로 자동 전환됩니다.
 
@@ -63,6 +55,18 @@ python src/inference.py
 ```
 
 기본 실행은 ONNX Runtime의 `DmlExecutionProvider`를 우선 사용하고, 화면에 원본·정면(X-Y)·측면(Z-Y) 패널을 표시합니다. 종료하려면 `q`를 누릅니다. `save_video=True`로 실행되므로 결과는 `src/output/result.mp4`에 저장되며, 같은 이름이 있으면 `_1`, `_2`가 붙습니다.
+
+### ONNX 변환 확인
+
+학습이 끝나면 `src/weights/best_model.onnx`가 자동으로 생성됩니다. 입력은 `[1, 3, 256, 256]`, 주요 출력 `coords_3d`는 `[1, 8, 3]`이며 ONNX opset 11을 사용합니다.
+이미 학습된 가중치만 다시 변환해야 하는 경우에는 다음 명령을 사용합니다.
+
+**모델이 최신화가 안 된 것 같으면 실행**
+
+```powershell
+python src/export.py
+```
+
 
 ### 현재 파일 구조
 
