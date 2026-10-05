@@ -36,7 +36,7 @@ MediaPipe 모델 파일 `pose_landmarker_heavy.task`는 프로젝트 루트에 �
 python src/label.py
 ```
 
-처리된 영상은 `src/data/processed_videos.json`에 기록되며, 프레임 이미지는 `src/data/images/`, 라벨은 `src/data/annotations_3d.json`에 누적됩니다.
+처리된 영상은 `src/data/processed_videos.json`에 기록되며, 프레임 이미지는 `src/data/images/`, 라벨은 `src/data/annotations.json`에 누적됩니다.
 
 ### 3. 모델 학습
 
@@ -44,15 +44,15 @@ python src/label.py
 python src/train.py
 ```
 
-학습은 `src/data/annotations_3d.json`과 `src/data/images/`를 사용하며, 최적 가중치를 `src/weights/best_model.pth`에 저장합니다.
+학습은 `src/data/annotations.json`과 `src/data/images/`를 사용하며, 최적 가중치를 `src/weights/best_model.pth`에 저장합니다. 학습이 정상적으로 끝나면 `src/weights/best_model.onnx`로 자동 변환됩니다.
 
-### 4. ONNX 변환
+### 4. ONNX 변환 확인
+
+학습이 끝나면 `src/weights/best_model.onnx`가 자동으로 생성됩니다. 입력은 `[1, 3, 256, 256]`, 주요 출력 `coords_3d`는 `[1, 8, 3]`이며 ONNX opset 11을 사용합니다. 이미 학습된 가중치만 다시 변환해야 하는 경우에는 다음 명령을 사용합니다.
 
 ```powershell
 python src/export.py
 ```
-
-`src/weights/best_model.onnx`가 생성됩니다. 입력은 `[1, 3, 256, 256]`, 주요 출력 `coords_3d`는 `[1, 8, 3]`이며 ONNX opset 11을 사용합니다.
 
 ### 5. 실시간 3분할 추론
 

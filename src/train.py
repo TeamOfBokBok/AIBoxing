@@ -9,6 +9,7 @@ from models.pose_net import BoxingPose3DNet
 from utils.dataset import BoxingDataset
 from utils.loss import MPJPELoss
 from config import DATA_DIR, IMAGE_DIR, PYTORCH_WEIGHTS_PATH, SRC_ROOT, resolve_runtime
+from export import export_onnx
 
 def setup_device_and_config():
     """학습 장치와 DataLoader 옵션을 공통 런타임 설정에서 가져옵니다."""
@@ -33,7 +34,11 @@ def train():
 
     img_dir = IMAGE_DIR
 
-    full_dataset = BoxingDataset(json_path=json_path, img_dir=img_dir, is_train=True)
+    full_dataset = BoxingDataset(
+        json_path=str(json_path),
+        img_dir=str(img_dir),
+        is_train=True,
+    )
     val_size = int(len(full_dataset) * val_ratio)
     train_size = len(full_dataset) - val_size
     train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
@@ -111,6 +116,9 @@ def train():
             best_val_loss = avg_val_loss
             torch.save(model.state_dict(), weight_path)
             print(f"  --> 💾 최적 가중치 갱신 (Val Loss: {best_val_loss:.4f})")
+
+    print("🔄 학습 완료: 최적 가중치를 ONNX로 변환합니다.")
+    export_onnx()
 
 if __name__ == "__main__":
     train()
