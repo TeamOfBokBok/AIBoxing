@@ -1,15 +1,8 @@
 import os
 import sys
 import torch
+import multiprocessing as mp
 from torch.utils.data import DataLoader, random_split
-
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-    print(f"🚀 CUDA 사용 가능: GPU({torch.cuda.get_device_name(0)}) 할당")
-else:
-    device = torch.device("cpu")
-    torch.set_num_threads(os.cpu_count() or 4)
-    print(f"🚀 CUDA 미지원: CPU 할당 (스레드 수: {torch.get_num_threads()}개)")
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -19,14 +12,35 @@ from utils.loss import MPJPELoss
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+def get_device():
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        msg = f"🚀 CUDA 사용 가능: GPU({torch.cuda.get_device_name(0)}) 할당"
+    else:
+        device = torch.device("cpu")
+        torch.set_num_threads(os.cpu_count() or 4)
+        msg = f"🚀 CUDA 미지원: CPU 할당 (스레드 수: {torch.get_num_threads()}개)"
+    
+    # 💡 Windows spawn 방식의 워커 프로세스가 실행될 때는 메시지 출력을 스킵
+    if mp.current_process().name == 'MainProcess':
+        print(msg)
+        
+    return device
+
 def train():
+    device = get_device()
+    
     num_epochs = 20
     batch_size = 16
     learning_rate = 1e-4
     val_ratio = 0.2
 
-    # 💡 annotations.json 경로 변경 (하위 호환성 체크 적용)
     json_path = os.path.join(PROJECT_ROOT, "src", "data", "annotations.json")
+    legacy_json_path = os.path.join(PROJECT_ROOT, "src", "data", "annotations_3d.json")
+    
+    if not os.path.exists(json_path) and os.path.exists(legacy_json_path):
+        os.rename(legacy_json_path, json_path)
+        print("🔄 기존 annotations_3d.json을 annotations.json으로 이름을 변경했습니다.")
 
     img_dir = os.path.join(PROJECT_ROOT, "src", "data", "images")
 
