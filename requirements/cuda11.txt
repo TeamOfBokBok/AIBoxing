@@ -13,3 +13,4 @@ albumentations
 tqdm
 onnx
 onnxscript
+onnxruntime-gpu

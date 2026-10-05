@@ -1,9 +1,6 @@
 import os
 import sys
 import torch
-import multiprocessing as mp
-import importlib
-import importlib.util  # 💡 서브모듈 직접 명시 (Import error 방지)
 from torch.utils.data import DataLoader, random_split
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -11,78 +8,15 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from models.pose_net import BoxingPose3DNet
 from utils.dataset import BoxingDataset
 from utils.loss import MPJPELoss
-
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
+from config import DATA_DIR, IMAGE_DIR, PYTORCH_WEIGHTS_PATH, SRC_ROOT, resolve_runtime
 
 def setup_device_and_config():
-    """
-    NVIDIA CUDA, Linux ROCm, Windows DirectML, CPU를 자동 감지하고
-    하드웨어 특성에 맞는 DataLoader 설정 파라미터를 반환합니다.
-    """
-    device_type = "cpu"
-    msg = ""
-
-    # 1. NVIDIA CUDA 또는 Linux AMD ROCm 감지
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-        device_type = "cuda"
-        gpu_name = torch.cuda.get_device_name(0)
-        msg = f"🚀 [CUDA/ROCm] 가속 장치 감지: GPU ({gpu_name})"
-
-    # 2. Windows AMD GPU (DirectML) 동적 감지 시도
-    else:
-        dml_spec = importlib.util.find_spec("torch_directml")
-        if dml_spec is not None:
-            try:
-                torch_dml = importlib.import_module("torch_directml")
-                if torch_dml.is_available():
-                    device = torch_dml.device()
-                    device_type = "directml"
-                    msg = f"🚀 [DirectML] AMD/Intel 가속 장치 감지: {torch_dml.device_name(0)}"
-                else:
-                    raise ImportError
-            except Exception:
-                device = torch.device("cpu")
-                torch.set_num_threads(os.cpu_count() or 4)
-                msg = f"🚀 [CPU Mode] 가속 장치 미감지: CPU 사용 (스레드 {torch.get_num_threads()}개)"
-        else:
-            device = torch.device("cpu")
-            torch.set_num_threads(os.cpu_count() or 4)
-            msg = f"🚀 [CPU Mode] 가속 장치 미감지: CPU 사용 (스레드 {torch.get_num_threads()}개)"
-
-    # 메인 프로세스에서만 디바이스 정보 출력
-    if mp.current_process().name == 'MainProcess':
-        print("=" * 65)
-        print(msg)
-        print("=" * 65)
-
-    # 3. 디바이스별 DataLoader 하드웨어 최적화 파라미터 구성
-    if device_type == "cuda":
-        loader_kwargs = {
-            "num_workers": min(4, os.cpu_count() or 2),
-            "pin_memory": True,
-            "persistent_workers": True,
-            "non_blocking": True
-        }
-    elif device_type == "directml":
-        loader_kwargs = {
-            "num_workers": min(2, os.cpu_count() or 2),
-            "pin_memory": False,
-            "persistent_workers": True,
-            "non_blocking": False
-        }
-    else:  # CPU
-        loader_kwargs = {
-            "num_workers": 0,
-            "pin_memory": False,
-            "persistent_workers": False,
-            "non_blocking": False
-        }
-
-    return device, loader_kwargs
+    """학습 장치와 DataLoader 옵션을 공통 런타임 설정에서 가져옵니다."""
+    runtime = resolve_runtime()
+    return runtime.device, runtime.loader_kwargs
 
 def train():
+    """데이터셋을 분할해 3D 포즈 모델을 학습하고 최적 가중치를 저장합니다."""
     device, config = setup_device_and_config()
 
     num_epochs = 20
@@ -90,14 +24,14 @@ def train():
     learning_rate = 1e-4
     val_ratio = 0.2
 
-    json_path = os.path.join(PROJECT_ROOT, "src", "data", "annotations.json")
-    legacy_json_path = os.path.join(PROJECT_ROOT, "src", "data", "annotations_3d.json")
+    json_path = DATA_DIR / "annotations.json"
+    legacy_json_path = DATA_DIR / "annotations_3d.json"
 
     if not os.path.exists(json_path) and os.path.exists(legacy_json_path):
         os.rename(legacy_json_path, json_path)
         print("🔄 기존 annotations_3d.json을 annotations.json으로 이름을 변경했습니다.")
 
-    img_dir = os.path.join(PROJECT_ROOT, "src", "data", "images")
+    img_dir = IMAGE_DIR
 
     full_dataset = BoxingDataset(json_path=json_path, img_dir=img_dir, is_train=True)
     val_size = int(len(full_dataset) * val_ratio)
@@ -123,8 +57,8 @@ def train():
 
     model = BoxingPose3DNet(num_keypoints=8, depth_res=64, pretrained=True).to(device)
 
-    weights_dir = os.path.join(PROJECT_ROOT, "src", "weights")
-    weight_path = os.path.join(weights_dir, "best_model.pth")
+    weights_dir = SRC_ROOT / "weights"
+    weight_path = PYTORCH_WEIGHTS_PATH
 
     if os.path.exists(weight_path):
         print(f"🔄 기존 가중치 로드 완료: {weight_path} (이어서 학습을 시작합니다)")

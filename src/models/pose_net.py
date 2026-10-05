@@ -88,6 +88,7 @@ class BoxingPose3DNet(nn.Module):
         self.soft_argmax = SoftArgmax3D(depth=depth_res, height=64, width=64)
 
     def forward(self, x):
+        """이미지에서 3D 관절 좌표와 중간 volumetric heatmap을 반환합니다."""
         features = self.backbone(x)
         volumetric_heatmaps = self.decoder(features)
         coords_3d = self.soft_argmax(volumetric_heatmaps)

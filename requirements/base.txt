@@ -1,0 +1,9 @@
+# Install exactly one hardware profile after this file.
+numpy
+opencv-python
+mediapipe
+pillow
+albumentations
+tqdm
+onnx
+onnxscript

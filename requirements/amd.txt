@@ -4,8 +4,9 @@
 torch
 torchvision
 
-# AMD GPU Acceleration
+# AMD/Intel GPU inference on Windows
 onnxruntime-directml
+torch-directml
 
 # Common ML & Vision Dependencies
 numpy

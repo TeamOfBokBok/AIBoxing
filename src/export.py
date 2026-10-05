@@ -4,12 +4,14 @@ import torch
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from models.pose_net import BoxingPose3DNet
+from config import ONNX_WEIGHTS_PATH, PYTORCH_WEIGHTS_PATH
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WEIGHT_PATH = os.path.join(PROJECT_ROOT, "src", "weights", "best_model.pth")
-OUTPUT_PATH = os.path.join(PROJECT_ROOT, "src", "weights", "best_model.onnx")
+WEIGHT_PATH = str(PYTORCH_WEIGHTS_PATH)
+OUTPUT_PATH = str(ONNX_WEIGHTS_PATH)
 
 def export_onnx(weight_path: str = WEIGHT_PATH, output_path: str = OUTPUT_PATH) -> None:
+    """학습된 PyTorch 가중치를 CPU에서 호환 가능한 ONNX 모델로 변환합니다."""
     if not os.path.exists(weight_path):
         raise FileNotFoundError(f"❌ 가중치 파일을 찾을 수 없습니다: {weight_path}")
 

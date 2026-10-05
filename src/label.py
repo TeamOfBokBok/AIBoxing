@@ -4,6 +4,7 @@ import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from config import DATA_DIR, MODEL_PATH
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["GLOG_minloglevel"] = "2"
@@ -11,7 +12,9 @@ os.environ["GLOG_minloglevel"] = "2"
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class PoseLabelGenerator:
-    def __init__(self, data_dir: str = "src/data", video_dir: str = "src/data/videos", model_path: str = "pose_landmarker_heavy.task"):
+    """MediaPipe로 영상 프레임의 상체 3D 관절 라벨을 생성합니다."""
+
+    def __init__(self, data_dir: str = str(DATA_DIR), video_dir: str = str(DATA_DIR / "videos"), model_path: str = str(MODEL_PATH)):
         self.output_dir = os.path.join(PROJECT_ROOT, data_dir) if not os.path.isabs(data_dir) else data_dir
         self.video_dir = os.path.join(PROJECT_ROOT, video_dir) if not os.path.isabs(video_dir) else video_dir
         self.img_out_dir = os.path.join(self.output_dir, "images")
@@ -33,8 +36,8 @@ class PoseLabelGenerator:
         }
 
     def process_all_new_videos(self, sample_rate: int = 5):
+        """아직 처리하지 않은 영상만 샘플링해 이미지와 JSON 라벨을 누적합니다."""
         json_out_path = os.path.join(self.output_dir, "annotations.json")
-        legacy_json_path = os.path.join(self.output_dir, "annotations_3d.json")
         processed_log_path = os.path.join(self.output_dir, "processed_videos.json")
 
         annotations = []

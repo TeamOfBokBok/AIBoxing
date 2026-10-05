@@ -3,22 +3,32 @@ import sys
 import time
 import cv2
 import numpy as np
+from config import (
+    ONNX_WEIGHTS_PATH,
+    OUTPUT_DIR,
+    PYTORCH_WEIGHTS_PATH,
+    available_onnx_providers,
+    resolve_runtime,
+)
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ONNX_PATH = os.path.join(PROJECT_ROOT, "src", "weights", "best_model.onnx")
-PTH_PATH = os.path.join(PROJECT_ROOT, "src", "weights", "best_model.pth")
-OUTPUT_PATH = os.path.join(PROJECT_ROOT, "src", "output", "result.mp4")
+ONNX_PATH = str(ONNX_WEIGHTS_PATH)
+PTH_PATH = str(PYTORCH_WEIGHTS_PATH)
+OUTPUT_PATH = str(OUTPUT_DIR / "result.mp4")
 
 cv2.setNumThreads(4)
 
 class FastBoxingInference:
+    """ONNX Runtime을 우선 사용하고 사용 불가 시 PyTorch로 추론합니다."""
+
     def __init__(self, use_onnx: bool = True):
         self.use_onnx = use_onnx
         self.skeleton = [(0, 1), (1, 2), (2, 3), (3, 4), (1, 5), (5, 6), (6, 7)]
 
-        if self.use_onnx and os.path.exists(ONNX_PATH):
+        providers = available_onnx_providers()
+        if self.use_onnx and os.path.exists(ONNX_PATH) and providers:
             import onnxruntime as ort
             session_options = ort.SessionOptions()
             session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
@@ -27,19 +37,21 @@ class FastBoxingInference:
             self.session = ort.InferenceSession(
                 ONNX_PATH,
                 session_options,
-                providers=["DmlExecutionProvider", "CPUExecutionProvider"]
+                providers=providers
             )
             self.input_name = self.session.get_inputs()[0].name
-            print(f"🚀 [ONNX DirectML Engine] 할당 디바이스: {self.session.get_providers()}")
+            print(f"[ONNX Runtime] providers={self.session.get_providers()}")
         else:
             import torch
             from models.pose_net import BoxingPose3DNet
             self.use_onnx = False
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.device = resolve_runtime().device
             self.model = BoxingPose3DNet(num_keypoints=8, depth_res=64).to(self.device)
-            self.model.load_state_dict(torch.load(PTH_PATH, map_location=self.device))
+            if not os.path.exists(PTH_PATH):
+                raise FileNotFoundError(f"PyTorch 가중치를 찾을 수 없습니다: {PTH_PATH}")
+            self.model.load_state_dict(torch.load(PTH_PATH, map_location=self.device, weights_only=True))
             self.model.eval()
-            print(f"🚀 [PyTorch Engine] 할당 디바이스: {self.device}")
+            print(f"[PyTorch] device={self.device}")
 
     def preprocess(self, frame_bgr: np.ndarray) -> np.ndarray:
         resized = cv2.resize(frame_bgr, (256, 256), interpolation=cv2.INTER_NEAREST)
@@ -52,6 +64,7 @@ class FastBoxingInference:
         return np.ascontiguousarray(img_data[np.newaxis, ...], dtype=np.float32)
 
     def predict(self, frame_bgr: np.ndarray) -> np.ndarray:
+        """BGR 프레임을 모델 입력으로 변환해 8개 관절의 3D 좌표를 반환합니다."""
         input_array = self.preprocess(frame_bgr)
 
         if self.use_onnx:
@@ -96,6 +109,7 @@ class FastBoxingInference:
         return canvas
 
     def run(self, video_path: str = "boxing_sample.mp4", display_scale: float = 1.0, save_video: bool = False) -> None:
+        """영상 또는 웹캠을 읽어 원본과 두 방향의 3D 포즈를 표시합니다."""
         video_path = os.path.join(PROJECT_ROOT, video_path) if not os.path.isabs(video_path) else video_path
         use_webcam = not os.path.exists(video_path)
         cap = cv2.VideoCapture(0 if use_webcam else video_path)

@@ -7,6 +7,8 @@ from torch.utils.data import Dataset
 import torchvision.transforms as T
 
 class BoxingDataset(Dataset):
+    """이미지와 정규화된 3D 관절 라벨을 PyTorch 텐서로 제공합니다."""
+
     def __init__(self, json_path: str, img_dir: str, is_train: bool = True):
         self.img_dir = img_dir
         self.is_train = is_train

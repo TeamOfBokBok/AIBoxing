@@ -10,6 +10,7 @@ class MPJPELoss(nn.Module):
         super(MPJPELoss, self).__init__()
 
     def forward(self, pred_coords, target_coords):
+        """관절별 유클리드 거리의 평균인 MPJPE를 계산합니다."""
         """
         pred_coords:   [B, K, 3] (모델이 예측한 3D 좌표)
         target_coords: [B, K, 3] (정답 3D 좌표)

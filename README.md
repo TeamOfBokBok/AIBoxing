@@ -12,8 +12,14 @@ PowerShell 기준입니다.
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install -r requirements/base.txt
+python -m pip install -r requirements/cpu.txt  # CPU 또는 Intel/AMD GPU가 없는 환경
 ```
+
+NVIDIA 환경은 `cuda11.txt` 또는 `cuda12.txt`, Windows AMD/Intel GPU 환경은
+`amd.txt`를 CPU 프로필 대신 설치합니다. 한 환경에서 하드웨어 프로필은 하나만
+선택하세요. Docker는 필요하지 않으며, 각 스크립트가 CUDA/ROCm, DirectML, CPU
+순서로 실행 장치를 자동 선택합니다.
 
 수동 설치가 필요하면 다음 패키지를 설치합니다.
 
@@ -64,7 +70,12 @@ python src/inference.py
 AIBoxing/
 ├── boxing_sample.mp4
 ├── pose_landmarker_heavy.task
-├── requirements.txt
+├── requirements/
+│   ├── base.txt
+│   ├── cpu.txt
+│   ├── amd.txt
+│   ├── cuda11.txt
+│   └── cuda12.txt
 ├── README.md
 └── src/
    ├── data/
