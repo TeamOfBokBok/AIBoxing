@@ -1,0 +1,18 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Core PyTorch (CPU Backend for AMD Windows)
+torch
+torchvision
+
+# AMD GPU Acceleration
+onnxruntime-directml
+
+# Common ML & Vision Dependencies
+numpy
+opencv-python
+mediapipe
+pillow
+albumentations
+tqdm
+onnx
+onnxscript

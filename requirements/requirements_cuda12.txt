@@ -1,0 +1,15 @@
+--extra-index-url https://download.pytorch.org/whl/cu121
+
+# Core PyTorch (CUDA 12.1 Backend)
+torch
+torchvision
+
+# Common ML & Vision Dependencies
+numpy
+opencv-python
+mediapipe
+pillow
+albumentations
+tqdm
+onnx
+onnxscript

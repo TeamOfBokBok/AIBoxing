@@ -2,6 +2,8 @@ import os
 import sys
 import torch
 import multiprocessing as mp
+import importlib
+import importlib.util  # 💡 서브모듈 직접 명시 (Import error 방지)
 from torch.utils.data import DataLoader, random_split
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -12,32 +14,85 @@ from utils.loss import MPJPELoss
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-def get_device():
+
+def setup_device_and_config():
+    """
+    NVIDIA CUDA, Linux ROCm, Windows DirectML, CPU를 자동 감지하고
+    하드웨어 특성에 맞는 DataLoader 설정 파라미터를 반환합니다.
+    """
+    device_type = "cpu"
+    msg = ""
+
+    # 1. NVIDIA CUDA 또는 Linux AMD ROCm 감지
     if torch.cuda.is_available():
         device = torch.device("cuda")
-        msg = f"🚀 CUDA 사용 가능: GPU({torch.cuda.get_device_name(0)}) 할당"
+        device_type = "cuda"
+        gpu_name = torch.cuda.get_device_name(0)
+        msg = f"🚀 [CUDA/ROCm] 가속 장치 감지: GPU ({gpu_name})"
+
+    # 2. Windows AMD GPU (DirectML) 동적 감지 시도
     else:
-        device = torch.device("cpu")
-        torch.set_num_threads(os.cpu_count() or 4)
-        msg = f"🚀 CUDA 미지원: CPU 할당 (스레드 수: {torch.get_num_threads()}개)"
-    
-    # 💡 Windows spawn 방식의 워커 프로세스가 실행될 때는 메시지 출력을 스킵
+        dml_spec = importlib.util.find_spec("torch_directml")
+        if dml_spec is not None:
+            try:
+                torch_dml = importlib.import_module("torch_directml")
+                if torch_dml.is_available():
+                    device = torch_dml.device()
+                    device_type = "directml"
+                    msg = f"🚀 [DirectML] AMD/Intel 가속 장치 감지: {torch_dml.device_name(0)}"
+                else:
+                    raise ImportError
+            except Exception:
+                device = torch.device("cpu")
+                torch.set_num_threads(os.cpu_count() or 4)
+                msg = f"🚀 [CPU Mode] 가속 장치 미감지: CPU 사용 (스레드 {torch.get_num_threads()}개)"
+        else:
+            device = torch.device("cpu")
+            torch.set_num_threads(os.cpu_count() or 4)
+            msg = f"🚀 [CPU Mode] 가속 장치 미감지: CPU 사용 (스레드 {torch.get_num_threads()}개)"
+
+    # 메인 프로세스에서만 디바이스 정보 출력
     if mp.current_process().name == 'MainProcess':
+        print("=" * 65)
         print(msg)
-        
-    return device
+        print("=" * 65)
+
+    # 3. 디바이스별 DataLoader 하드웨어 최적화 파라미터 구성
+    if device_type == "cuda":
+        loader_kwargs = {
+            "num_workers": min(4, os.cpu_count() or 2),
+            "pin_memory": True,
+            "persistent_workers": True,
+            "non_blocking": True
+        }
+    elif device_type == "directml":
+        loader_kwargs = {
+            "num_workers": min(2, os.cpu_count() or 2),
+            "pin_memory": False,
+            "persistent_workers": True,
+            "non_blocking": False
+        }
+    else:  # CPU
+        loader_kwargs = {
+            "num_workers": 0,
+            "pin_memory": False,
+            "persistent_workers": False,
+            "non_blocking": False
+        }
+
+    return device, loader_kwargs
 
 def train():
-    device = get_device()
-    
+    device, config = setup_device_and_config()
+
     num_epochs = 20
-    batch_size = 16
+    batch_size = 32
     learning_rate = 1e-4
     val_ratio = 0.2
 
     json_path = os.path.join(PROJECT_ROOT, "src", "data", "annotations.json")
     legacy_json_path = os.path.join(PROJECT_ROOT, "src", "data", "annotations_3d.json")
-    
+
     if not os.path.exists(json_path) and os.path.exists(legacy_json_path):
         os.rename(legacy_json_path, json_path)
         print("🔄 기존 annotations_3d.json을 annotations.json으로 이름을 변경했습니다.")
@@ -49,16 +104,28 @@ def train():
     train_size = len(full_dataset) - val_size
     train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
 
-    num_workers = 2 if device.type == "cuda" else 0
-    pin_memory = True if device.type == "cuda" else False
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=config["num_workers"],
+        pin_memory=config["pin_memory"],
+        persistent_workers=config["persistent_workers"]
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=config["num_workers"],
+        pin_memory=config["pin_memory"],
+        persistent_workers=config["persistent_workers"]
+    )
 
     model = BoxingPose3DNet(num_keypoints=8, depth_res=64, pretrained=True).to(device)
 
     weights_dir = os.path.join(PROJECT_ROOT, "src", "weights")
     weight_path = os.path.join(weights_dir, "best_model.pth")
+
     if os.path.exists(weight_path):
         print(f"🔄 기존 가중치 로드 완료: {weight_path} (이어서 학습을 시작합니다)")
         model.load_state_dict(torch.load(weight_path, map_location=device))
@@ -72,11 +139,15 @@ def train():
     os.makedirs(weights_dir, exist_ok=True)
     best_val_loss = float('inf')
 
+    non_blocking = config["non_blocking"]
+
     for epoch in range(num_epochs):
         model.train()
         train_loss = 0.0
         for images, targets in train_loader:
-            images, targets = images.to(device), targets.to(device)
+            images = images.to(device, non_blocking=non_blocking)
+            targets = targets.to(device, non_blocking=non_blocking)
+
             pred_coords, _ = model(images)
             loss = criterion(pred_coords, targets)
 
@@ -91,7 +162,9 @@ def train():
         val_loss = 0.0
         with torch.no_grad():
             for images, targets in val_loader:
-                images, targets = images.to(device), targets.to(device)
+                images = images.to(device, non_blocking=non_blocking)
+                targets = targets.to(device, non_blocking=non_blocking)
+
                 pred_coords, _ = model(images)
                 val_loss += criterion(pred_coords, targets).item()
 
