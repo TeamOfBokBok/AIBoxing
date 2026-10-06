@@ -9,12 +9,13 @@ Windows의 AMD GPU에서는 ONNX Runtime DirectML을 우선 사용하고, ONNX �
 
 Python 3.11.9 설치
 
+python -m venv .venv
+.venv\Scripts\activate.bat
+
 
 PowerShell 기준입니다.
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements/base.txt
 python -m pip install -r requirements/cpu.txt  # CPU 또는 Intel/AMD GPU가 없는 환경
 ```
