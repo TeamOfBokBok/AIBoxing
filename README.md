@@ -7,6 +7,9 @@ Windows의 AMD GPU에서는 ONNX Runtime DirectML을 우선 사용하고, ONNX �
 
 ### 1. 가상환경 및 의존성 설치
 
+Python 3.11.9 설치
+
+
 PowerShell 기준입니다.
 
 ```powershell
