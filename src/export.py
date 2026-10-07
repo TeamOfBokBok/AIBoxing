@@ -15,7 +15,7 @@ def export_onnx(weight_path: str = WEIGHT_PATH, output_path: str = OUTPUT_PATH) 
     if not os.path.exists(weight_path):
         raise FileNotFoundError(f"❌ 가중치 파일을 찾을 수 없습니다: {weight_path}")
 
-    model = BoxingPose3DNet(num_keypoints=8, depth_res=64, pretrained=False)
+    model = BoxingPose3DNet(num_keypoints=9, depth_res=64, pretrained=False)
     state_dict = torch.load(weight_path, map_location="cpu", weights_only=True)
     model.load_state_dict(state_dict)
     model.eval()

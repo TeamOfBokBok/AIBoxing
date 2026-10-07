@@ -15,7 +15,7 @@ class ResNetBackbone(nn.Module):
 
 # 2. 3D 디코더 모듈 (Volumetric Heatmap Head)
 class Decoder3D(nn.Module):
-    def __init__(self, num_keypoints=8, depth_res=64):
+    def __init__(self, num_keypoints=9, depth_res=64):
         super(Decoder3D, self).__init__()
         self.num_keypoints = num_keypoints
         self.depth_res = depth_res
@@ -81,7 +81,7 @@ class SoftArgmax3D(nn.Module):
 
 # 4. 메인 3D 포즈 추정 모델
 class BoxingPose3DNet(nn.Module):
-    def __init__(self, num_keypoints=8, depth_res=64, pretrained=True):
+    def __init__(self, num_keypoints=9, depth_res=64, pretrained=True):
         super(BoxingPose3DNet, self).__init__()
         self.backbone = ResNetBackbone(pretrained=pretrained)
         self.decoder = Decoder3D(num_keypoints=num_keypoints, depth_res=depth_res)
@@ -100,7 +100,7 @@ class BoxingPose3DNet(nn.Module):
 # ----------------------------------------------------
 if __name__ == "__main__":
     print("⏳ 모델 생성 및 가중치 로드 중...")
-    model = BoxingPose3DNet(num_keypoints=8, depth_res=64)
+    model = BoxingPose3DNet(num_keypoints=9, depth_res=64)
     model.eval()
 
     # 가짜 256x256 RGB 이미지 1장 생성
@@ -113,8 +113,8 @@ if __name__ == "__main__":
     print("\n==========================================")
     print("🎉 [드라이런 성공] 모델 연산이 정상 작동합니다!")
     print(f"- 입력 이미지 Shape: {dummy_image.shape}")
-    print(f"- 출력 3D 좌표 Shape: {coords_3d.shape}  --> [배치, 8개관절, (X,Y,Z)]")
-    print(f"- 출력 3D Heatmap Shape: {heatmaps.shape} --> [배치, 8개관절, Depth, Height, Width]")
+    print(f"- 출력 3D 좌표 Shape: {coords_3d.shape}  --> [배치, 9개관절, (X,Y,Z)]")
+    print(f"- 출력 3D Heatmap Shape: {heatmaps.shape} --> [배치, 9개관절, Depth, Height, Width]")
     print("==========================================\n")
     print("추출된 가짜 3D 좌표 샘플 (첫 번째 관절):")
     print(f"X: {coords_3d[0][0][0]:.4f}, Y: {coords_3d[0][0][1]:.4f}, Z: {coords_3d[0][0][2]:.4f}")

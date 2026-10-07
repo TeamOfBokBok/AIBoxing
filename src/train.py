@@ -60,7 +60,7 @@ def train():
         persistent_workers=config["persistent_workers"]
     )
 
-    model = BoxingPose3DNet(num_keypoints=8, depth_res=64, pretrained=True).to(device)
+    model = BoxingPose3DNet(num_keypoints=9, depth_res=64, pretrained=True).to(device)
 
     weights_dir = SRC_ROOT / "weights"
     weight_path = PYTORCH_WEIGHTS_PATH

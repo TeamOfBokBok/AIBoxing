@@ -46,7 +46,7 @@ class FastBoxingInference:
             from models.pose_net import BoxingPose3DNet
             self.use_onnx = False
             self.device = resolve_runtime().device
-            self.model = BoxingPose3DNet(num_keypoints=8, depth_res=64).to(self.device)
+            self.model = BoxingPose3DNet(num_keypoints=9, depth_res=64).to(self.device)
             if not os.path.exists(PTH_PATH):
                 raise FileNotFoundError(f"PyTorch 가중치를 찾을 수 없습니다: {PTH_PATH}")
             self.model.load_state_dict(torch.load(PTH_PATH, map_location=self.device, weights_only=True))
@@ -64,7 +64,7 @@ class FastBoxingInference:
         return np.ascontiguousarray(img_data[np.newaxis, ...], dtype=np.float32)
 
     def predict(self, frame_bgr: np.ndarray) -> np.ndarray:
-        """BGR 프레임을 모델 입력으로 변환해 8개 관절의 3D 좌표를 반환합니다."""
+        """BGR 프레임을 모델 입력으로 변환해 9개 관절의 3D 좌표를 반환합니다."""
         input_array = self.preprocess(frame_bgr)
 
         if self.use_onnx:
