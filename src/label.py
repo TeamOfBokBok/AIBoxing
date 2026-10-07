@@ -86,9 +86,12 @@ class PoseLabelGenerator:
                         neck_y = (r_sh.y + l_sh.y) / 2.0
                         neck_z = (r_sh.z + l_sh.z) / 2.0
 
-                        waist_x = (landmarks[self.mp_map["r_hip"]].x + landmarks[self.mp_map["l_hip"]].x) / 2.0
-                        waist_y = (landmarks[self.mp_map["r_hip"]].y + landmarks[self.mp_map["l_hip"]].y) / 2.0
-                        waist_z = (landmarks[self.mp_map["r_hip"]].z + landmarks[self.mp_map["l_hip"]].z) / 2.0
+                        r_hip = landmarks[self.mp_map["r_hip"]]
+                        l_hip = landmarks[self.mp_map["l_hip"]]
+
+                        waist_x = (r_hip.x + l_hip.x) / 2.0
+                        waist_y = (r_hip.y + l_hip.y) / 2.0
+                        waist_z = (r_hip.z + l_hip.z) / 2.0
 
                         keypoints_raw = [
                             [landmarks[self.mp_map["nose"]].x, landmarks[self.mp_map["nose"]].y, landmarks[self.mp_map["nose"]].z],
@@ -104,9 +107,9 @@ class PoseLabelGenerator:
 
                         keypoints_norm = [
                             [
-                                max(-1.0, min(1.0, round(kp[0] - neck_x, 4))),
-                                max(-1.0, min(1.0, round(kp[1] - neck_y, 4))),
-                                max(-1.0, min(1.0, round(kp[2] - neck_z, 4)))
+                                max(-1.0, min(1.0, round(kp[0] - waist_x, 4))),
+                                max(-1.0, min(1.0, round(kp[1] - waist_y, 4))),
+                                max(-1.0, min(1.0, round(kp[2] - waist_z, 4)))
                             ]
                             for kp in keypoints_raw
                         ]
