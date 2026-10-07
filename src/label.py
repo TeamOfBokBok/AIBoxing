@@ -32,7 +32,7 @@ class PoseLabelGenerator:
 
         self.mp_map = {
             "nose": 0, "r_shoulder": 12, "r_elbow": 14, "r_wrist": 16,
-            "l_shoulder": 11, "l_elbow": 13, "l_wrist": 15
+            "l_shoulder": 11, "l_elbow": 13, "l_wrist": 15, "r_hip": 24, "l_hip": 23
         }
 
     def process_all_new_videos(self, sample_rate: int = 5):
@@ -86,6 +86,10 @@ class PoseLabelGenerator:
                         neck_y = (r_sh.y + l_sh.y) / 2.0
                         neck_z = (r_sh.z + l_sh.z) / 2.0
 
+                        waist_x = (landmarks[self.mp_map["r_hip"]].x + landmarks[self.mp_map["l_hip"]].x) / 2.0
+                        waist_y = (landmarks[self.mp_map["r_hip"]].y + landmarks[self.mp_map["l_hip"]].y) / 2.0
+                        waist_z = (landmarks[self.mp_map["r_hip"]].z + landmarks[self.mp_map["l_hip"]].z) / 2.0
+
                         keypoints_raw = [
                             [landmarks[self.mp_map["nose"]].x, landmarks[self.mp_map["nose"]].y, landmarks[self.mp_map["nose"]].z],
                             [neck_x, neck_y, neck_z],
@@ -94,7 +98,8 @@ class PoseLabelGenerator:
                             [landmarks[self.mp_map["r_wrist"]].x, landmarks[self.mp_map["r_wrist"]].y, landmarks[self.mp_map["r_wrist"]].z],
                             [l_sh.x, l_sh.y, l_sh.z],
                             [landmarks[self.mp_map["l_elbow"]].x, landmarks[self.mp_map["l_elbow"]].y, landmarks[self.mp_map["l_elbow"]].z],
-                            [landmarks[self.mp_map["l_wrist"]].x, landmarks[self.mp_map["l_wrist"]].y, landmarks[self.mp_map["l_wrist"]].z]
+                            [landmarks[self.mp_map["l_wrist"]].x, landmarks[self.mp_map["l_wrist"]].y, landmarks[self.mp_map["l_wrist"]].z],
+                            [waist_x, waist_y, waist_z]
                         ]
 
                         keypoints_norm = [
