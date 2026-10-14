@@ -16,6 +16,9 @@ OUTPUT_DIR = SRC_ROOT / "output"
 MODEL_PATH = PROJECT_ROOT / "pose_landmarker_heavy.task"
 PYTORCH_WEIGHTS_PATH = WEIGHTS_DIR / "best_model.pth"
 ONNX_WEIGHTS_PATH = WEIGHTS_DIR / "best_model.onnx"
+TRAIN_BATCH_SIZE = int(os.environ.get("AI_BOXING_BATCH_SIZE", "4"))
+if TRAIN_BATCH_SIZE < 1:
+    raise ValueError("AI_BOXING_BATCH_SIZE는 1 이상의 정수여야 합니다.")
 
 
 @dataclass(frozen=True)
@@ -34,10 +37,12 @@ def resolve_runtime() -> RuntimeConfig:
     if torch.cuda.is_available():
         device = torch.device("cuda")
         backend = "cuda/rocm"
+        # Windows worker 프로세스가 CUDA/PyTorch DLL을 재초기화하지 않도록 합니다.
+        worker_count = 0 if os.name == "nt" else min(4, os.cpu_count() or 2)
         loader_kwargs = {
-            "num_workers": min(4, os.cpu_count() or 2),
+            "num_workers": worker_count,
             "pin_memory": True,
-            "persistent_workers": True,
+            "persistent_workers": worker_count > 0,
             "non_blocking": True,
         }
     elif importlib.util.find_spec("torch_directml") is not None:
@@ -47,10 +52,11 @@ def resolve_runtime() -> RuntimeConfig:
                 raise RuntimeError("DirectML is unavailable")
             device = torch_dml.device()
             backend = "directml"
+            worker_count = 0 if os.name == "nt" else min(2, os.cpu_count() or 2)
             loader_kwargs = {
-                "num_workers": min(2, os.cpu_count() or 2),
+                "num_workers": worker_count,
                 "pin_memory": False,
-                "persistent_workers": True,
+                "persistent_workers": worker_count > 0,
                 "non_blocking": False,
             }
         except Exception:

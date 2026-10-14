@@ -8,7 +8,14 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from models.pose_net import BoxingPose3DNet
 from utils.dataset import BoxingDataset
 from utils.loss import MPJPELoss
-from config import DATA_DIR, IMAGE_DIR, PYTORCH_WEIGHTS_PATH, SRC_ROOT, resolve_runtime
+from config import (
+    DATA_DIR,
+    IMAGE_DIR,
+    PYTORCH_WEIGHTS_PATH,
+    SRC_ROOT,
+    TRAIN_BATCH_SIZE,
+    resolve_runtime,
+)
 from export import export_onnx
 
 def setup_device_and_config():
@@ -21,7 +28,7 @@ def train():
     device, config = setup_device_and_config()
 
     num_epochs = 20
-    batch_size = 32
+    batch_size = TRAIN_BATCH_SIZE
     learning_rate = 1e-4
     val_ratio = 0.2
 
@@ -67,7 +74,9 @@ def train():
 
     if os.path.exists(weight_path):
         print(f"🔄 기존 가중치 로드 완료: {weight_path} (이어서 학습을 시작합니다)")
-        model.load_state_dict(torch.load(weight_path, map_location=device))
+        model.load_state_dict(
+            torch.load(weight_path, map_location=device, weights_only=True)
+        )
     else:
         print("✨ 기존 가중치 없음: 처음부터 신규 학습을 시작합니다.")
 

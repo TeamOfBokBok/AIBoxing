@@ -45,10 +45,17 @@ python src/label.py
 ### 3. 모델 학습
 
 ```powershell
+# GTX 1650 4GB 기준 기본값은 4입니다. 부족하면 2 또는 1로 낮추세요.
+$env:AI_BOXING_BATCH_SIZE="4"
 python src/train.py
 ```
 
-학습은 `src/data/annotations.json`과 `src/data/images/`를 사용하며, 최적 가중치를 `src/weights/best_model.pth`에 저장합니다. 학습이 정상적으로 끝나면 `src/weights/best_model.onnx`로 자동 변환됩니다.
+배치 크기는 `src/config.py`의 `TRAIN_BATCH_SIZE`에서 관리하며,
+`AI_BOXING_BATCH_SIZE` 환경변수로 실행 시 덮어쓸 수 있습니다.
+Windows의 CUDA/DirectML 학습은 PyTorch DLL 초기화 충돌을 피하기 위해
+DataLoader worker를 사용하지 않습니다. 학습은 `src/data/annotations.json`과
+`src/data/images/`를 사용하며, 최적 가중치를 `src/weights/best_model.pth`에 저장합니다.
+학습이 정상적으로 끝나면 `src/weights/best_model.onnx`로 자동 변환됩니다.
 
 ### 4. 실시간 3분할 추론
 
