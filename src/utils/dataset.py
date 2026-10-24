@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 import torchvision.transforms as T
+from utils.image import letterbox
 
 class BoxingDataset(Dataset):
     """이미지와 정규화된 3D 관절 라벨을 PyTorch 텐서로 제공합니다."""
@@ -59,8 +60,7 @@ class BoxingDataset(Dataset):
         if img_bgr is None:
             raise FileNotFoundError(f"❌ 이미지 파일을 읽을 수 없습니다: {img_path}")
 
-        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-        image_tensor = self.transform(img_rgb)
+        image_tensor = self.transform(cv2.cvtColor(letterbox(img_bgr), cv2.COLOR_BGR2RGB))
         keypoints = torch.tensor(item["keypoints_3d"], dtype=torch.float32)
 
         return image_tensor, keypoints

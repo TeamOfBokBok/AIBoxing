@@ -10,6 +10,7 @@ from config import (
     available_onnx_providers,
     resolve_runtime,
 )
+from utils.image import letterbox
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -54,7 +55,8 @@ class FastBoxingInference:
             print(f"[PyTorch] device={self.device}")
 
     def preprocess(self, frame_bgr: np.ndarray) -> np.ndarray:
-        resized = cv2.resize(frame_bgr, (256, 256), interpolation=cv2.INTER_NEAREST)
+        letterboxed = letterbox(frame_bgr)
+        resized = cv2.resize(letterboxed, (256, 256), interpolation=cv2.INTER_NEAREST)
         rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
         img_data = rgb.astype(np.float32) / 255.0
         img_data = (img_data - np.array([0.485, 0.456, 0.406], dtype=np.float32)) / np.array(

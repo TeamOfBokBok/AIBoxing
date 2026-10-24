@@ -5,6 +5,7 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from config import DATA_DIR, MODEL_PATH
+from utils.image import letterbox
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["GLOG_minloglevel"] = "2"
@@ -73,6 +74,7 @@ class PoseLabelGenerator:
                     break
 
                 if frame_idx % sample_rate == 0:
+                    frame = letterbox(frame)
                     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
                     detection_result = self.detector.detect(mp_image)
