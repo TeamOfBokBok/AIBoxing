@@ -42,6 +42,11 @@ python src/label.py
 
 처리된 영상은 `src/data/processed_videos.json`에 기록되며, 프레임 이미지는 `src/data/images/`, 라벨은 `src/data/annotations.json`에 누적됩니다.
 
+라벨링할 때 프레임은 원본 종횡비를 유지하면서 16:9가 되도록 검정색 여백을 추가하는
+letterbox 전처리를 거칩니다. 추론과 학습에서도 같은 전처리를 적용하므로 4:3이나 세로
+영상도 화면이 찌그러지지 않습니다. 기존에 생성된 이미지도 학습 시 자동으로 동일한
+전처리가 적용됩니다.
+
 ### 3. 모델 학습
 
 ```powershell
@@ -207,7 +212,7 @@ $$\mathcal{L}_{3D} = \frac{1}{K} \sum_{k=1}^{K} \Vert{} \hat{J}_k - J_k \Vert{}_
 ## 7. 현재 상태 및 주의사항
 
 * 학습 스크립트는 기존 `best_model.pth`가 있으면 해당 가중치를 불러와 이어서 학습합니다.
-* `inference.py`는 입력 프레임을 256x256으로 전처리하고, 3분할 화면의 전체 기준 폭을 1920픽셀로 구성합니다.
+* `inference.py`는 입력 프레임을 16:9 letterbox 처리한 뒤 256x256으로 전처리하고, 3분할 화면의 전체 기준 폭을 1920픽셀로 구성합니다.
 * `DmlExecutionProvider`가 설치되어 있지 않거나 ONNX 모델이 없으면 `inference.py`가 PyTorch 경로로 fallback합니다.
 * Unreal Engine UDP 전송 모듈은 현재 파일 구조에 포함되어 있지 않습니다.
 
