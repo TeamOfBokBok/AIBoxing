@@ -37,11 +37,14 @@ def merge_checkpoints(weight_paths: list, output_path: str):
 
 if __name__ == "__main__":
     # 병합할 파일을 실제 경로로 바꾼 뒤 실행합니다.
-    pc_weights = [
-        "src/merge/best_model_pc1.pth",
-        "src/merge/best_model_pc2.pth",
-        "src/merge/best_model_pc3.pth"
-    ]
+    pc_weights = []
+    for f in os.listdir("src/merge"):
+        if f.endswith(".pth"):
+            pc_weights.append(os.path.join("src/merge", f))
+
+    if len(pc_weights) < 2:
+        raise ValueError("❌ 병합할 가중치 파일이 2개 이상 필요합니다.")
+    
     merged_output = "src/merge/merged_model.pth"
     
     merge_checkpoints(pc_weights, merged_output)
