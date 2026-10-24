@@ -14,6 +14,8 @@ from config import (
     PYTORCH_WEIGHTS_PATH,
     SRC_ROOT,
     TRAIN_BATCH_SIZE,
+    MAX_NECK_HEAD_DISTANCE,
+    NECK_HEAD_CONSTRAINT_WEIGHT,
     resolve_runtime,
 )
 from export import export_onnx
@@ -80,7 +82,12 @@ def train():
     else:
         print("✨ 기존 가중치 없음: 처음부터 신규 학습을 시작합니다.")
 
-    criterion = MPJPELoss()
+    criterion = MPJPELoss(
+        max_neck_head_distance=MAX_NECK_HEAD_DISTANCE,
+        neck_index=1,
+        head_index=0,
+        constraint_weight=NECK_HEAD_CONSTRAINT_WEIGHT,
+    )
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=1e-6)
 

@@ -19,6 +19,16 @@ ONNX_WEIGHTS_PATH = WEIGHTS_DIR / "best_model.onnx"
 TRAIN_BATCH_SIZE = int(os.environ.get("AI_BOXING_BATCH_SIZE", "4"))
 if TRAIN_BATCH_SIZE < 1:
     raise ValueError("AI_BOXING_BATCH_SIZE는 1 이상의 정수여야 합니다.")
+MAX_NECK_HEAD_DISTANCE = float(
+    os.environ.get("AI_BOXING_MAX_NECK_HEAD_DISTANCE", "0.5")
+)
+NECK_HEAD_CONSTRAINT_WEIGHT = float(
+    os.environ.get("AI_BOXING_NECK_HEAD_CONSTRAINT_WEIGHT", "1.0")
+)
+if MAX_NECK_HEAD_DISTANCE <= 0:
+    raise ValueError("AI_BOXING_MAX_NECK_HEAD_DISTANCE는 0보다 커야 합니다.")
+if NECK_HEAD_CONSTRAINT_WEIGHT < 0:
+    raise ValueError("AI_BOXING_NECK_HEAD_CONSTRAINT_WEIGHT는 0 이상이어야 합니다.")
 
 
 @dataclass(frozen=True)
