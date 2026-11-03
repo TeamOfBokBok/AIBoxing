@@ -1,161 +1,99 @@
-import os
-import sys
-import time
+"""Train the mixed synthetic/real relative 3D pose model."""
+
+import json
+import random
+from pathlib import Path
 import torch
-from torch.utils.data import DataLoader, random_split
-
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
+from torch.utils.data import DataLoader
+from config import (ANNOTATIONS_PATH, DATA_DIR, EPOCHS, REAL_IMAGE_DIR, SYNTHETIC_IMAGE_DIR,
+                    TRAIN_BATCH_SIZE, WEIGHTS_DIR, PYTORCH_WEIGHTS_PATH, resolve_runtime)
 from models.pose_net import BoxingPose3DNet
-from utils.dataset import BoxingDataset
-from utils.loss import MPJPELoss
-from config import (
-    DATA_DIR,
-    IMAGE_DIR,
-    PYTORCH_WEIGHTS_PATH,
-    SRC_ROOT,
-    TRAIN_BATCH_SIZE,
-    MAX_NECK_HEAD_DISTANCE,
-    NECK_HEAD_CONSTRAINT_WEIGHT,
-    resolve_runtime,
-)
-from export import export_onnx
+from utils.dataset import PoseDataset
+from utils.loss import WeightedMPJPELoss, bone_length_loss
 
 
-def save_checkpoint(state_dict, weight_path, retries=5):
-    """체크포인트를 임시 파일에 저장한 뒤 원자적으로 교체합니다."""
-    temp_path = weight_path.with_name(f".{weight_path.name}.{os.getpid()}.tmp")
+def split_by_sequence(items, validation_ratio=0.2):
+    rng = random.Random(42)
+    train_items = []
+    val_items = []
+    sources = sorted({item.source for item in items})
+    for source in sources:
+        source_items = [item for item in items if item.source == source]
+        sequences = sorted({item.sequence_id for item in source_items})
+        rng.shuffle(sequences)
+        if len(sequences) >= 2:
+            cutoff = max(1, int(len(sequences) * (1 - validation_ratio)))
+            train_ids = set(sequences[:cutoff])
+            train_items.extend(item for item in source_items
+                               if item.sequence_id in train_ids)
+            val_items.extend(item for item in source_items
+                             if item.sequence_id not in train_ids)
+        else:
+            rng.shuffle(source_items)
+            cutoff = max(1, int(len(source_items) * (1 - validation_ratio)))
+            train_items.extend(source_items[:cutoff])
+            val_items.extend(source_items[cutoff:])
+    return train_items, val_items
 
-    try:
-        for attempt in range(retries):
-            try:
-                torch.save(state_dict, temp_path)
-                os.replace(temp_path, weight_path)
-                return
-            except OSError:
-                if attempt == retries - 1:
-                    raise
-                time.sleep(2 ** attempt)
-    finally:
-        if temp_path.exists():
-            temp_path.unlink()
 
-
-def setup_device_and_config():
-    """학습 장치와 DataLoader 옵션을 공통 런타임 설정에서 가져옵니다."""
+def train() -> None:
+    if not ANNOTATIONS_PATH.exists():
+        raise FileNotFoundError(f"annotation 파일이 없습니다: {ANNOTATIONS_PATH}")
     runtime = resolve_runtime()
-    return runtime.device, runtime.loader_kwargs
-
-def train():
-    """데이터셋을 분할해 3D 포즈 모델을 학습하고 최적 가중치를 저장합니다."""
-    device, config = setup_device_and_config()
-
-    num_epochs = 20
-    batch_size = TRAIN_BATCH_SIZE
-    learning_rate = 1e-4
-    val_ratio = 0.2
-
-    json_path = DATA_DIR / "annotations.json"
-    legacy_json_path = DATA_DIR / "annotations_3d.json"
-
-    if not os.path.exists(json_path) and os.path.exists(legacy_json_path):
-        os.rename(legacy_json_path, json_path)
-        print("🔄 기존 annotations_3d.json을 annotations.json으로 이름을 변경했습니다.")
-
-    img_dir = IMAGE_DIR
-
-    full_dataset = BoxingDataset(
-        json_path=str(json_path),
-        img_dir=str(img_dir),
-        is_train=True,
-    )
-    val_size = int(len(full_dataset) * val_ratio)
-    train_size = len(full_dataset) - val_size
-    train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
-
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=config["num_workers"],
-        pin_memory=config["pin_memory"],
-        persistent_workers=config["persistent_workers"]
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=config["num_workers"],
-        pin_memory=config["pin_memory"],
-        persistent_workers=config["persistent_workers"]
-    )
-
-    model = BoxingPose3DNet(num_keypoints=9, depth_res=64, pretrained=True).to(device)
-
-    weights_dir = SRC_ROOT / "weights"
-    weight_path = PYTORCH_WEIGHTS_PATH
-
-    if os.path.exists(weight_path):
-        print(f"🔄 기존 가중치 로드 완료: {weight_path} (이어서 학습을 시작합니다)")
-        model.load_state_dict(
-            torch.load(weight_path, map_location=device, weights_only=True)
-        )
-    else:
-        print("✨ 기존 가중치 없음: 처음부터 신규 학습을 시작합니다.")
-
-    criterion = MPJPELoss(
-        max_neck_head_distance=MAX_NECK_HEAD_DISTANCE,
-        neck_index=1,
-        head_index=0,
-        constraint_weight=NECK_HEAD_CONSTRAINT_WEIGHT,
-    )
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs, eta_min=1e-6)
-
-    os.makedirs(weights_dir, exist_ok=True)
-    best_val_loss = float('inf')
-
-    non_blocking = config["non_blocking"]
-
-    for epoch in range(num_epochs):
+    roots = [str(REAL_IMAGE_DIR), str(SYNTHETIC_IMAGE_DIR)]
+    synthetic_annotations = DATA_DIR / "synthetic_annotations.json"
+    annotation_paths = [str(ANNOTATIONS_PATH)]
+    if synthetic_annotations.exists():
+        annotation_paths.append(str(synthetic_annotations))
+    dataset = PoseDataset(annotation_paths, roots)
+    train_items, val_items = split_by_sequence(dataset.annotations)
+    if not val_items:
+        raise ValueError("validation sequence가 없습니다. 영상/sequence를 두 개 이상 준비하세요.")
+    train_dataset = PoseDataset.__new__(PoseDataset)
+    train_dataset.image_roots, train_dataset.annotations = dataset.image_roots, train_items
+    val_dataset = PoseDataset.__new__(PoseDataset)
+    val_dataset.image_roots, val_dataset.annotations = dataset.image_roots, val_items
+    kwargs = runtime.loader_kwargs
+    train_loader = DataLoader(train_dataset, TRAIN_BATCH_SIZE, shuffle=True,
+                              num_workers=kwargs["num_workers"],
+                              pin_memory=kwargs["pin_memory"])
+    val_loader = DataLoader(val_dataset, TRAIN_BATCH_SIZE, shuffle=False,
+                            num_workers=kwargs["num_workers"],
+                            pin_memory=kwargs["pin_memory"])
+    model = BoxingPose3DNet(pretrained=True).to(runtime.device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
+    criterion = WeightedMPJPELoss()
+    best = float("inf")
+    WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
+    for epoch in range(EPOCHS):
         model.train()
         train_loss = 0.0
-        for images, targets in train_loader:
-            images = images.to(device, non_blocking=non_blocking)
-            targets = targets.to(device, non_blocking=non_blocking)
-
-            pred_coords, _ = model(images)
-            loss = criterion(pred_coords, targets)
-
+        for images, targets, visibility, sources in train_loader:
+            images = images.to(runtime.device)
+            targets = targets.to(runtime.device)
+            visibility = visibility.to(runtime.device)
+            prediction, _ = model(images)
+            loss = criterion(prediction, targets, visibility, sources)
+            loss = loss + 0.05 * bone_length_loss(prediction)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
-
-        avg_train_loss = train_loss / len(train_loader)
-
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for images, targets in val_loader:
-                images = images.to(device, non_blocking=non_blocking)
-                targets = targets.to(device, non_blocking=non_blocking)
+            for images, targets, visibility, sources in val_loader:
+                prediction, _ = model(images.to(runtime.device))
+                val_loss += criterion(prediction, targets.to(runtime.device),
+                                      visibility.to(runtime.device), sources).item()
+        mean_val = val_loss / len(val_loader)
+        print(f"Epoch {epoch + 1}/{EPOCHS}: train={train_loss / len(train_loader):.4f}, "
+              f"val={mean_val:.4f}")
+        if mean_val < best:
+            best = mean_val
+            torch.save(model.state_dict(), PYTORCH_WEIGHTS_PATH)
+    print(f"최적 가중치 저장: {PYTORCH_WEIGHTS_PATH}")
 
-                pred_coords, _ = model(images)
-                val_loss += criterion(pred_coords, targets).item()
-
-        avg_val_loss = val_loss / len(val_loader)
-        scheduler.step()
-
-        print(f"Epoch [{epoch+1:02d}/{num_epochs:02d}] - Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
-
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
-            save_checkpoint(model.state_dict(), weight_path)
-            print(f"  --> 💾 최적 가중치 갱신 (Val Loss: {best_val_loss:.4f})")
-
-    print("🔄 학습 완료: 최적 가중치를 ONNX로 변환합니다.")
-    export_onnx()
 
 if __name__ == "__main__":
     train()
