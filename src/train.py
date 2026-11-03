@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import torch
 from torch.utils.data import DataLoader, random_split
 
@@ -19,6 +20,26 @@ from config import (
     resolve_runtime,
 )
 from export import export_onnx
+
+
+def save_checkpoint(state_dict, weight_path, retries=5):
+    """체크포인트를 임시 파일에 저장한 뒤 원자적으로 교체합니다."""
+    temp_path = weight_path.with_name(f".{weight_path.name}.{os.getpid()}.tmp")
+
+    try:
+        for attempt in range(retries):
+            try:
+                torch.save(state_dict, temp_path)
+                os.replace(temp_path, weight_path)
+                return
+            except OSError:
+                if attempt == retries - 1:
+                    raise
+                time.sleep(2 ** attempt)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
 
 def setup_device_and_config():
     """학습 장치와 DataLoader 옵션을 공통 런타임 설정에서 가져옵니다."""
@@ -130,7 +151,7 @@ def train():
 
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            torch.save(model.state_dict(), weight_path)
+            save_checkpoint(model.state_dict(), weight_path)
             print(f"  --> 💾 최적 가중치 갱신 (Val Loss: {best_val_loss:.4f})")
 
     print("🔄 학습 완료: 최적 가중치를 ONNX로 변환합니다.")
